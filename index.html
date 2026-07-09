@@ -78,11 +78,7 @@
 
         <div class="menu-item">
             <span class="section-title">🥫 เลือกซอสสำหรับเมนูทานเล่น (เลือกได้สูงสุด 2 ซอส)</span>
-            <label><input type="checkbox" name="snack_sauce" value="ซาวครีม" onchange="limitSnackSauces(this)"> ซาวครีม</label>
-            <label><input type="checkbox" name="snack_sauce" value="ชีสซอส" onchange="limitSnackSauces(this)"> ชีสซอส</label>
-            <label><input type="checkbox" name="snack_sauce" value="ซอสเผ็ดเกาหลี" onchange="limitSnackSauces(this)"> ซอสเผ็ดเกาหลี</label>
-            <label><input type="checkbox" name="snack_sauce" value="ซอสพิซซ่า" onchange="limitSnackSauces(this)"> ซอสพิซซ่า</label>
-            <label><input type="checkbox" name="snack_sauce" value="ซอสเทอริยากิ" onchange="limitSnackSauces(this)"> ซอสเทอริยากิ</label>
+            <div id="render_snack_sauces"></div>
         </div>
         <div class="menu-item"><span class="section-title">🍱 เมนูทานเล่น</span><div id="render_snacks"></div></div>
         <div class="menu-item" id="normal-sides-container"><span class="section-title">✨ เครื่องเคียง (ฟรี 2 อย่าง)</span><div id="render_normal_sides"></div></div>
@@ -181,7 +177,7 @@
         { name: "🍗 กดเพื่อไปที่หน้าร้านข้าวยำไก่ copy|https://hackanyting-bot.github.io/chickencopy24/", price: 1, stock: true },
         { name: "🍳 กดเพื่อไปที่ร้านไข่กระทะ|", price: 2, stock: false }
     ];
-    let menuDB = { system_config:[], system_marquee:[], system_links:[], main_ok:[], main_buldak:[], main_mama:[], main_waiwai:[], main_yumyum:[], flower_flavors:[], sides:[], snacks:[], extras:[], store_inventory:[] };
+    let menuDB = { system_config:[], delivery_config:[], system_marquee:[], system_links:[], main_ok:[], main_buldak:[], main_mama:[], main_waiwai:[], main_yumyum:[], flower_flavors:[], sides:[], snack_sauce:[], snacks:[], extras:[], store_inventory:[] };
     let currentAdminMode = 'menu';
     let cart = [];
 
@@ -189,10 +185,27 @@
         try {
             const { data, error } = await _supabase.from('menu_items').select('*').order('name');
             if (data && data.length > 0) {
-                const freshDB = { system_config:[], system_marquee:[], system_links:[], main_ok:[], main_buldak:[], main_mama:[], main_waiwai:[], main_yumyum:[], flower_flavors:[], sides:[], snacks:[], extras:[], store_inventory:[] };
+                const freshDB = { system_config:[], delivery_config:[], system_marquee:[], system_links:[], main_ok:[], main_buldak:[], main_mama:[], main_waiwai:[], main_yumyum:[], flower_flavors:[], sides:[], snack_sauce:[], snacks:[], extras:[], store_inventory:[] };
                 data.forEach(item => { if(freshDB[item.category]) freshDB[item.category].push(item); });
                 menuDB = freshDB;
             }
+            
+            // เตรียมข้อมูลซอสตั้งต้นถ้าฐานข้อมูลซอสว่างเปล่า
+            if (menuDB.snack_sauce.length === 0) {
+                menuDB.snack_sauce = [
+                    {name: "ซาวครีม", price: 0, stock: true},
+                    {name: "ชีสซอส", price: 0, stock: true},
+                    {name: "ซอสเผ็ดเกาหลี", price: 0, stock: true},
+                    {name: "ซอสพิซซ่า", price: 0, stock: true},
+                    {name: "ซอสเทอริยากิ", price: 0, stock: true}
+                ];
+            }
+
+            // เตรียมข้อมูลเดลิเวอรี่ตั้งต้นถ้าฐานข้อมูลว่างเปล่า
+            if (menuDB.delivery_config.length === 0) {
+                menuDB.delivery_config = [{ name: "delivery_status", price: 0, stock: true }];
+            }
+
             ensurePartnerLinks();
             renderPartnerLinks();
 
@@ -243,6 +256,7 @@
         renderSection('render_flower_flavors', menuDB.flower_flavors, 'radio', 'flower_flavor');
         renderStepperSection('render_flower_sides', menuDB.sides, 'flower_sides');
         renderStepperSection('render_normal_sides', menuDB.sides, 'normal_sides');
+        renderSection('render_snack_sauces', menuDB.snack_sauce, 'checkbox', 'snack_sauce');
         renderSection('render_snacks', menuDB.snacks, 'checkbox', 'extra_menu');
         renderSection('render_extras', menuDB.extras, 'checkbox', 'extra');
         calculateTotal();
@@ -312,7 +326,7 @@
         wrap.style.display = 'grid';
         wrap.style.gap = '10px';
         wrap.innerHTML = links.map((link, index) => `
-            <button type="button" onclick="window.location.href='${escapeAttr(link.url)}'" style="background-color: ${index % 2 === 0 ? '#ff9800' : '#2e7d32'}; color: white; border: none; padding: 15px; border-radius: 12px; font-size: 1.08em; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 4px ${index % 2 === 0 ? '#e65100' : '#1b5e20'};">
+            <button type="button" onclick="window.location.href='${escapeAttr(link.url)}'" style="background-color: ${index % 2 === 0 ? '#ff9800' : '#2e7d32'}; color: white; border: none; padding: 15px; border-radius: 12px; font-size: 1.08em; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 4px ${index % 2 === 0 ? '#ff9800' : '#1b5e20'};">
                 ${escapeHtml(link.label)}
             </button>
         `).join('');
@@ -347,12 +361,20 @@
 
     function renderSection(id, data, type, name) {
         const div = document.getElementById(id); div.innerHTML = '';
+        if (!data) return;
         data.forEach(item => {
             if (!item.stock) return;
             const lbl = document.createElement('label');
             const isSpec = (name === 'main_menu' && item.name === 'มาม่าดอกไม้');
-            const finalOnChg = (name === 'main_menu') ? `onchange="toggleSpecialMenu(${isSpec})"` : 'onchange="calculateTotal()"';
-            lbl.innerHTML = `<input type="${type}" name="${name}" value="${item.name}" data-price="${item.price}" ${finalOnChg}> ${item.name} <span class="price">${item.price||0}.-</span>`;
+            let finalOnChg = (name === 'main_menu') ? `onchange="toggleSpecialMenu(${isSpec})"` : 'onchange="calculateTotal()"';
+            
+            // แยกเงื่อนไข onchange สำหรับระบบซอส
+            if (name === 'snack_sauce') finalOnChg = `onchange="limitSnackSauces(this)"`;
+
+            // ซ่อนราคา 0.- สำหรับระบบซอสเพื่อความสวยงามเหมือน UI เดิม
+            let priceHtml = (name === 'snack_sauce' && (item.price === 0 || !item.price)) ? '' : ` <span class="price">${item.price||0}.-</span>`;
+
+            lbl.innerHTML = `<input type="${type}" name="${name}" value="${item.name}" data-price="${item.price||0}" ${finalOnChg}> ${item.name}${priceHtml}`;
             div.appendChild(lbl);
         });
     }
@@ -413,6 +435,19 @@
 
     function handleDeliveryChange(v) { 
         document.getElementById('address_section').style.display = (v.includes('จัดส่ง')) ? 'block' : 'none'; 
+
+        // ระบบแจ้งเตือนตรวจสอบการเปิด-ปิด Delivery
+        if (v.includes('จัดส่ง')) {
+            let deliveryOpen = true;
+            if (menuDB.delivery_config && menuDB.delivery_config.length > 0) {
+                deliveryOpen = menuDB.delivery_config[0].stock;
+            }
+            if (!deliveryOpen) {
+                alert("วันนี้ปิดรับส่งเดลิเวอรี่ ลูกค้ายังสามารถสั่งได้ทาง LINE man จากใน shopee");
+                document.getElementById('delivery_type').value = "รับเองที่ร้าน";
+                document.getElementById('address_section').style.display = 'none';
+            }
+        }
     }
 
     function limitSnackSauces(changedEl) {
@@ -645,6 +680,13 @@
         else if (config.stock) config.name = "";
         openAdmin();
     }
+    
+    function toggleDeliveryStatus() {
+        if(!menuDB.delivery_config) menuDB.delivery_config = [];
+        if(!menuDB.delivery_config[0]) menuDB.delivery_config[0] = { name: "delivery_status", price: 0, stock: true };
+        menuDB.delivery_config[0].stock = !menuDB.delivery_config[0].stock;
+        openAdmin();
+    }
 
     function updateReopenDate(val) {
         if(menuDB.system_config[0]) menuDB.system_config[0].name = `${val}|ปิดถึงวันที่กำหนด`;
@@ -667,8 +709,17 @@
             
             const shopDiv = document.createElement('div');
             shopDiv.style.cssText = "background: #f8d7da; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; border: 2px solid #f5c6cb;";
-            shopDiv.innerHTML = `<h3 style="margin-top:0; color: #721c24;">🛑 สถานะร้าน</h3><button type="button" style="background: ${config.stock ? '#2e7d32' : '#d32f2f'}; color: white; padding: 15px; width: 100%; border: none; border-radius: 10px; font-size: 1.2em; font-weight: bold; cursor: pointer; margin-bottom: 10px;" onclick="toggleShopStatus()">${config.stock ? '🟢 ร้านกำลังเปิด (กดเพื่อปิดร้าน 1 วัน)' : '🔴 ร้านปิดอยู่ (กดเพื่อเปิดร้าน)'}</button><div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; margin-bottom:10px;"><button type="button" style="background:#ef6c00; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(1, 'ปิด 1 ชั่วโมง')">ปิด 1 ชม.</button><button type="button" style="background:#ef6c00; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(5, 'ปิด 5 ชั่วโมง')">ปิด 5 ชม.</button><button type="button" style="background:#c62828; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(24, 'ปิด 1 วัน')">ปิด 1 วัน</button><button type="button" style="background:#c62828; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(48, 'ปิด 2 วัน')">ปิด 2 วัน</button></div><button type="button" style="background: #5d4037; color: white; padding: 10px; width: 100%; border: none; border-radius: 10px; font-size: 1em; cursor: pointer; margin-bottom: 10px;" onclick="currentAdminMode='store'; openAdmin()">📦 จัดการสต็อกของสด (Store)</button><button type="button" style="background: #1976d2; color: white; padding: 10px; width: 100%; border: none; border-radius: 10px; font-size: 1em; cursor: pointer; margin-bottom: 10px;" onclick="window.location.href='cogs.html'">📊 คำนวณต้นทุน</button><div style="display: ${config.stock ? 'none' : 'block'}; text-align: left; background: white; padding: 10px; border-radius: 8px;"><b style="display:block; color:#721c24; margin-bottom:8px;">ตอนนี้: ${escapeHtml(closeInfo.label)} / เปิดอีกครั้ง ${escapeHtml(closeInfo.reopenText)}</b><label>หรือเลือกวันที่เอง (เปิดอัตโนมัติ 23:59 น.):</label><input type="date" class="admin-input" style="width: 100%; margin-top: 5px; box-sizing: border-box;" value="${escapeAttr(closeInfo.dateValue && !closeInfo.dateValue.includes('T') ? closeInfo.dateValue : '')}" onchange="updateReopenDate(this.value)"></div>`;
+            shopDiv.innerHTML = `<h3 style="margin-top:0; color: #721c24;">🛑 Status ร้าน</h3><button type="button" style="background: ${config.stock ? '#2e7d32' : '#d32f2f'}; color: white; padding: 15px; width: 100%; border: none; border-radius: 10px; font-size: 1.2em; font-weight: bold; cursor: pointer; margin-bottom: 10px;" onclick="toggleShopStatus()">${config.stock ? '🟢 ร้านกำลังเปิด (กดเพื่อปิดร้าน 1 วัน)' : '🔴 ร้านปิดอยู่ (กดเพื่อเปิดร้าน)'}</button><div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:8px; margin-bottom:10px;"><button type="button" style="background:#ef6c00; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(1, 'ปิด 1 ชั่วโมง')">ปิด 1 ชม.</button><button type="button" style="background:#ef6c00; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(5, 'ปิด 5 ชั่วโมง')">ปิด 5 ชม.</button><button type="button" style="background:#ef6c00; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(8, 'ปิด 8 ชั่วโมง')">ปิด 8 ชม.</button><button type="button" style="background:#c62828; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(24, 'ปิด 1 วัน')">ปิด 1 วัน</button><button type="button" style="background:#c62828; color:white; padding:10px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;" onclick="setShopClosedFor(48, 'ปิด 2 วัน')">ปิด 2 วัน</button></div><button type="button" style="background: #5d4037; color: white; padding: 10px; width: 100%; border: none; border-radius: 10px; font-size: 1em; cursor: pointer; margin-bottom: 10px;" onclick="currentAdminMode='store'; openAdmin()">📦 จัดการสต็อกของสด (Store)</button><button type="button" style="background: #1976d2; color: white; padding: 10px; width: 100%; border: none; border-radius: 10px; font-size: 1em; cursor: pointer; margin-bottom: 10px;" onclick="window.location.href='cogs.html'">📊 คำนวณต้นทุน</button><div style="display: ${config.stock ? 'none' : 'block'}; text-align: left; background: white; padding: 10px; border-radius: 8px;"><b style="display:block; color:#721c24; margin-bottom:8px;">ตอนนี้: ${escapeHtml(closeInfo.label)} / เปิดอีกครั้ง ${escapeHtml(closeInfo.reopenText)}</b><label>หรือเลือกวันที่เอง (เปิดอัตโนมัติ 23:59 น.):</label><input type="date" class="admin-input" style="width: 100%; margin-top: 5px; box-sizing: border-box;" value="${escapeAttr(closeInfo.dateValue && !closeInfo.dateValue.includes('T') ? closeInfo.dateValue : '')}" onchange="updateReopenDate(this.value)"></div>`;
             area.appendChild(shopDiv);
+            
+            // เพิ่มสถานะเดลิเวอรี่
+            let delConfig = menuDB.delivery_config[0] || { name: "delivery_status", price: 0, stock: true };
+            menuDB.delivery_config[0] = delConfig;
+            const deliveryDiv = document.createElement('div');
+            deliveryDiv.style.cssText = "background: #e0f7fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; border: 2px solid #80deea;";
+            deliveryDiv.innerHTML = `<h3 style="margin-top:0; color: #006064;">🛵 สถานะเดลิเวอรี่</h3><button type="button" style="background: ${delConfig.stock ? '#00838f' : '#d32f2f'}; color: white; padding: 15px; width: 100%; border: none; border-radius: 10px; font-size: 1.2em; font-weight: bold; cursor: pointer;" onclick="toggleDeliveryStatus()">${delConfig.stock ? '🟢 เดลิเวอรี่กำลังเปิด (กดเพื่อปิด)' : '🔴 เดลิเวอรี่ปิดอยู่ (กดเพื่อเปิด)'}</button>`;
+            area.appendChild(deliveryDiv);
+
             renderPartnerLinksAdmin(area);
 
             if(!menuDB.system_marquee) menuDB.system_marquee = [];
@@ -680,7 +731,12 @@
             marqueeDiv.innerHTML = `<h3 style="margin-top:0; color: #1565c0;">📢 ข้อความประกาศ (รถทัวร์)</h3><label style="font-size: 0.9em; color: #333;">พิมพ์ข้อความที่ต้องการให้วิ่งผ่านหน้าจอ (เว้นว่างไว้หากไม่ต้องการให้โชว์)</label><input type="text" class="admin-input" style="width: 100%; margin-top: 5px; box-sizing: border-box; font-size: 1em; padding: 10px;" placeholder="เช่น วันที่ 13 ถึง 16 ไปขายในเมือง" value="${marqueeConfig.name}" onchange="updateMarqueeText(this.value)">`;
             area.appendChild(marqueeDiv);
 
-            for (let section in menuDB) { if (section !== 'system_config' && section !== 'system_marquee' && section !== 'system_links' && section !== 'store_inventory') renderAdminSection(section, area); }
+            // loop จัดการหมวดหมู่ทั้งหมด แต่ละเว้น config ระบบ
+            for (let section in menuDB) { 
+                if (section !== 'system_config' && section !== 'delivery_config' && section !== 'system_marquee' && section !== 'system_links' && section !== 'store_inventory') {
+                    renderAdminSection(section, area); 
+                }
+            }
         } else {
             document.getElementById('adminModalTitle').innerText = "📦 Store Inventory";
             const btnWrap = document.createElement('div');
@@ -734,4 +790,4 @@
 
 </script>
 </body>
-</html> 
+</html>
